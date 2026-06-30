@@ -1,0 +1,8 @@
+# This file documents the cloud-init shape. scripts/build-guest-image.sh renders
+# state/user-data with the configured username, SSH key and base64-encoded guest
+# provisioning scripts.
+#cloud-config
+package_update: true
+ssh_pwauth: false
+disable_root: true
+

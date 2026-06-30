@@ -1,0 +1,10 @@
+.env
+images/*.img
+images/*.qcow2
+images/*.iso
+images/*.part
+logs/*
+!logs/.gitignore
+state/*
+!state/.gitignore
+

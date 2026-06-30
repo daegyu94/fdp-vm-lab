@@ -1,0 +1,4 @@
+[submodule "third_party/WARP-earlyaccess"]
+	path = third_party/WARP-earlyaccess
+	url = https://github.com/MoatLab/WARP-earlyaccess.git
+	branch = fdp

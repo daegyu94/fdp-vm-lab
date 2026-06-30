@@ -1,0 +1,17 @@
+diff --git a/setup.py b/setup.py
+index 52cff82..3c4cb43 100644
+--- a/setup.py
++++ b/setup.py
+@@ -40,6 +40,12 @@ if __name__ == "__main__":
+     ext_modules, cmdclass, req_file = policy.collect_extensions(profile)
+ 
+     install_requires = _read_requirements(ROOT_DIR / "requirements" / "common.txt")
++    # These packages expose NVIDIA-only runtime integrations and are not
++    # needed by the CPU build. Keep torch: the common C++ extensions and
++    # Python package import both require its CPU wheel.
++    if BuildProfile.is_gpu_ext_disabled():
++        gpu_only = {"cufile-python", "nvtx"}
++        install_requires = [req for req in install_requires if req not in gpu_only]
+     if not BuildProfile.is_gpu_ext_disabled() and req_file is not None:
+         install_requires += _read_requirements(ROOT_DIR / "requirements" / req_file)
+ 
