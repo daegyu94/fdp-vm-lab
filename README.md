@@ -56,6 +56,68 @@ LMCache는 기본적으로 설치하지 않는다. `./bringup.sh --with-lmcache`
 source를 URL과 branch/commit에서 clone하거나, `LMCACHE_SOURCE_PATH`로 지정한 host
 checkout을 read-only 9p로 공유한 뒤 writable `/workspace/LMCache`에 복사한다.
 
+## Image 크기와 변경 위치
+
+Ubuntu base image는 `GUEST_BASE_IMAGE_URL`에서 내려받아 `GUEST_BASE_IMAGE_PATH`에
+저장한다. 현재 pinned Ubuntu 24.04 cloud image의 실제 다운로드 크기는 약 593 MiB다.
+정확한 값은 다음으로 확인한다.
+
+```bash
+du -h images/ubuntu-24.04-base-amd64.img
+```
+
+Guest OS overlay는 qcow2 copy-on-write image이며 `GUEST_IMAGE_SIZE`가 virtual disk
+크기를 정한다. 기본값은 40 GiB다. qcow2 파일은 sparse/COW 형식이므로 실제 host disk
+사용량은 설치된 package와 write 양에 따라 virtual size보다 작거나 커진다. 기본 FDP-only
+bring-up은 LMCache를 설치하지 않으므로 기존 LMCache overlay보다 작게 시작한다.
+
+FDP emulated NVMe namespace 크기는 Ubuntu guest image 크기와 별개이며
+`FDP_SSD_SIZE_MB`로 정한다. 기본값은 16384 MiB, 즉 16 GiB다.
+
+크기 설정은 `.env`에서 override하는 방식을 권장한다.
+
+```bash
+cp .env.example .env
+# guest OS overlay virtual size
+GUEST_IMAGE_SIZE=40G
+# emulated FDP namespace size in MiB
+FDP_SSD_SIZE_MB=16384
+```
+
+이미 생성된 guest overlay에 `GUEST_IMAGE_SIZE` 변경을 반영하려면 VM을 끈 뒤 다시 만든다.
+
+```bash
+./bringup.sh --stop
+./bringup.sh --rebuild-guest --no-ssh
+```
+
+## Cloud image를 사용하는 이유
+
+이 프로젝트는 일반 Ubuntu installer ISO 대신 Ubuntu cloud image를 사용한다. Cloud
+image는 이미 설치된 최소 OS image라서 `cloud-init` seed를 붙여 바로 자동 provisioning할
+수 있다. 사용자는 installer에서 언어, 디스크, 계정, SSH를 직접 설정하지 않고
+`./bringup.sh`만 실행하면 된다.
+
+Cloud image를 쓰는 이유는 다음과 같다.
+
+- 설치 과정 없이 바로 부팅 가능한 guest OS를 사용한다.
+- `cloud-init`으로 `warp` user, SSH key, package 설치와 provisioning marker를 자동 설정한다.
+- `GUEST_BASE_IMAGE_URL`과 `GUEST_BASE_IMAGE_SHA256`을 고정해 같은 base OS에서 재현한다.
+- Base image와 writable qcow2 overlay를 분리해 base image를 재사용하고 guest 변경 사항만 overlay에 쌓는다.
+- FDP 테스트 환경의 목표인 “FDP SSD가 없는 사용자의 빠른 bring-up”에 맞춰 수동 OS 설치 단계를 제거한다.
+
+구조는 다음과 같다.
+
+```text
+Ubuntu cloud image
++ cloud-init seed
++ WARP/FEMU FDP NVMe device
+→ boot
+→ SSH key 등록
+→ nvme-cli/fio 설치
+→ FDP 확인 가능
+```
+
 ## Guest build와 안전 범위
 
 공식 Ubuntu cloud image는 checksum 검증 후 base image와 별도 qcow2 overlay로

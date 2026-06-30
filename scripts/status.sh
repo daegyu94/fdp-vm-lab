@@ -4,7 +4,7 @@ set -Eeuo pipefail
 source "$(dirname "$0")/common.sh"
 
 printf 'WARP source:        '
-if [[ -d ${WARP_SOURCE_DIR}/.git ]]; then
+if git -C "${WARP_SOURCE_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     printf '%s\n' "$(git -C "${WARP_SOURCE_DIR}" rev-parse --short HEAD)"
 else
     printf 'missing\n'
