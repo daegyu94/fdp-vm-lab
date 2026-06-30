@@ -4,6 +4,42 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${ROOT_DIR}/scripts/common.sh"
 
+
+format_duration() {
+    local seconds=$1
+    local hours=$((seconds / 3600))
+    local minutes=$(((seconds % 3600) / 60))
+    local secs=$((seconds % 60))
+
+    if ((hours > 0)); then
+        printf '%dh %02dm %02ds' "${hours}" "${minutes}" "${secs}"
+    elif ((minutes > 0)); then
+        printf '%dm %02ds' "${minutes}" "${secs}"
+    else
+        printf '%ds' "${secs}"
+    fi
+}
+
+run_step() {
+    local index=$1 total=$2 label=$3
+    shift 3
+
+    local start end elapsed status
+    start=$(date +%s)
+    log "[${index}/${total}] ${label} 시작"
+    if "$@"; then
+        end=$(date +%s)
+        elapsed=$((end - start))
+        log "[${index}/${total}] ${label} 완료 ($(format_duration "${elapsed}"))"
+    else
+        status=$?
+        end=$(date +%s)
+        elapsed=$((end - start))
+        log "[${index}/${total}] ${label} 실패 ($(format_duration "${elapsed}"), exit ${status})"
+        return "${status}"
+    fi
+}
+
 usage() {
     cat <<'EOF'
 Usage: ./bringup.sh [OPTION]
@@ -69,39 +105,34 @@ if is_true "${LMCACHE_INSTALL_ENABLED}"; then
     total_steps=10
 fi
 
-log "[1/${total_steps}] Host 환경 확인"
-"${ROOT_DIR}/scripts/check-host.sh"
-log "[2/${total_steps}] WARP source 준비"
-"${ROOT_DIR}/scripts/prepare-warp-source.sh"
-log "[3/${total_steps}] WARP/FEMU 빌드"
-"${ROOT_DIR}/scripts/build-warp.sh" "${rebuild_warp}"
-log "[4/${total_steps}] Ubuntu 24.04 image 준비"
-"${ROOT_DIR}/scripts/download-ubuntu-image.sh"
+total_start=$(date +%s)
+
+run_step 1 "${total_steps}" 'Host 환경 확인' "${ROOT_DIR}/scripts/check-host.sh"
+run_step 2 "${total_steps}" 'WARP source 준비' "${ROOT_DIR}/scripts/prepare-warp-source.sh"
+run_step 3 "${total_steps}" 'WARP/FEMU 빌드' "${ROOT_DIR}/scripts/build-warp.sh" "${rebuild_warp}"
+run_step 4 "${total_steps}" 'Ubuntu 24.04 image 준비' "${ROOT_DIR}/scripts/download-ubuntu-image.sh"
 
 step=5
 if is_true "${LMCACHE_INSTALL_ENABLED}"; then
-    log "[${step}/${total_steps}] LMCache cargo vendor 준비"
-    "${ROOT_DIR}/scripts/prepare-lmcache-vendor.sh"
+    run_step "${step}" "${total_steps}" 'LMCache cargo vendor 준비' "${ROOT_DIR}/scripts/prepare-lmcache-vendor.sh"
     step=$((step + 1))
 fi
 
-log "[${step}/${total_steps}] Guest provisioning image 준비"
-"${ROOT_DIR}/scripts/build-guest-image.sh" "${rebuild_guest}"
+run_step "${step}" "${total_steps}" 'Guest provisioning image 준비' "${ROOT_DIR}/scripts/build-guest-image.sh" "${rebuild_guest}"
 step=$((step + 1))
-log "[${step}/${total_steps}] WARP/FEMU VM 실행"
-"${ROOT_DIR}/scripts/start-vm.sh"
+run_step "${step}" "${total_steps}" 'WARP/FEMU VM 실행' "${ROOT_DIR}/scripts/start-vm.sh"
 step=$((step + 1))
-log "[${step}/${total_steps}] SSH 및 cloud-init 대기"
-"${ROOT_DIR}/scripts/wait-ready.sh"
+run_step "${step}" "${total_steps}" 'SSH 및 cloud-init 대기' "${ROOT_DIR}/scripts/wait-ready.sh"
 step=$((step + 1))
-log "[${step}/${total_steps}] FDP NVMe 확인"
-"${ROOT_DIR}/scripts/inspect-fdp.sh"
+run_step "${step}" "${total_steps}" 'FDP NVMe 확인' "${ROOT_DIR}/scripts/inspect-fdp.sh"
 
 if is_true "${LMCACHE_INSTALL_ENABLED}"; then
     step=$((step + 1))
-    log "[${step}/${total_steps}] GPU 없는 LMCache build 확인"
-    "${ROOT_DIR}/scripts/verify-lmcache.sh"
+    run_step "${step}" "${total_steps}" 'GPU 없는 LMCache build 확인' "${ROOT_DIR}/scripts/verify-lmcache.sh"
 fi
+
+total_end=$(date +%s)
+total_elapsed=$((total_end - total_start))
 
 lmcache_source='not provisioned by default'
 lmcache_summary='skipped (use ./bringup.sh --with-lmcache)'
@@ -125,6 +156,7 @@ LMCache source:    ${lmcache_source}
 LMCache build:     ${lmcache_summary}
 QEMU log:          ${QEMU_LOG}
 FDP report:        ${FDP_REPORT}
+Total elapsed:     $(format_duration "${total_elapsed}")
 
 FDP I/O smoke test inside the guest:
   sudo fio --name=fdp-read-pid0 --filename=/dev/ng0n1 --direct=0 --rw=read --bs=4k --size=16M --offset=1G --ioengine=io_uring_cmd --cmd_type=nvme --iodepth=1 --numjobs=1 --fdp=1 --fdp_pli=0

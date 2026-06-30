@@ -16,7 +16,17 @@ cd fdp-vm-lab
 
 최초 실행은 host package 설치를 위해 `sudo` password를 요청할 수 있다. `--recurse-submodules` 없이 clone했다면 먼저 `git submodule update --init --recursive`를 실행한다. 이후
 WARP build, base image, guest overlay, cloud-init seed와 실행 중 VM을 재사용한다.
-검증이 끝나면 guest SSH shell을 연다.
+검증이 끝나면 guest SSH shell을 연다. Bring-up은 각 단계의 시작/완료와 elapsed time을
+출력하므로 scratch setup에서 어느 단계가 오래 걸리는지 바로 확인할 수 있다.
+
+```text
+[1/9] Host 환경 확인 시작
+[1/9] Host 환경 확인 완료 (1s)
+[2/9] WARP source 준비 시작
+[2/9] WARP source 준비 완료 (3s)
+...
+Total elapsed:     32m 14s
+```
 
 ```bash
 ./bringup.sh
