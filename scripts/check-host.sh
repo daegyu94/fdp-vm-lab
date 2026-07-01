@@ -25,7 +25,7 @@ fi
 packages=(
     build-essential ca-certificates cloud-image-utils curl gettext-base git jq
     libaio-dev libattr1-dev libcap-ng-dev libfdt-dev libglib2.0-dev libpixman-1-dev
-    libseccomp-dev libslirp-dev liburing-dev ninja-build openssh-client pkg-config
+    libseccomp-dev libslirp-dev ninja-build openssh-client pkg-config
     qemu-utils socat wget zlib1g-dev
 )
 
